@@ -80,6 +80,15 @@ android {
             "\"https://github.com/Akshayykadam/PixelBoard\""
         )
         buildConfigField("String", "PATCH_VERSION", "\"${project.version}\"")
+        // SHA-256 of the certificate that signs the release APKs on GitHub. The in-app updater
+        // only installs over builds signed with it; set it to "" to allow any signer.
+        buildConfigField(
+            "String",
+            "RELEASE_SIGNING_CERT_SHA256",
+            "\"${providers.gradleProperty("releaseSigningCertSha256").getOrElse(
+                "07e18f42ec4f5f179dd25b8efab17c992a1fabf7e2deb37e4c4972e9e830e63d"
+            )}\""
+        )
     }
 
     sourceSets.named("main") {
