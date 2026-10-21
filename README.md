@@ -148,6 +148,13 @@ On supported devices (such as Google Pixel 8 Pro / 9 series), choose your prefer
 - **Signature Whitelist Bypass**: Pre-patched bytecode ensures Google Play signature checks and integrity verifications pass cleanly without root.
 - **Inline Autofill & Password Manager Suggestions**: Enables Android's `DeviceIntelligence` inline autofill chips for password managers (Bitwarden, 1Password, KeePass, etc.) in the renamed package ([#24](https://github.com/Akshayykadam/PixelBoard/pull/24)).
 
+### 16. Automatic Updates from GitHub Releases
+- **Daily Release Check**: Checks this repository's latest GitHub release once a day and posts a notification when a newer PixelBoard build is out. No Discord checking needed.
+- **In-App Download & Install**: Downloads the release APK, verifies it against the SHA-256 digest GitHub publishes, and hands it to Android's update prompt. Settings and dictionaries are kept.
+- **Future-Proof Version Matching**: Compares the patch bundle version (`patches-X.Y.Z.mpp` / "Patch vX.Y.Z"), so it keeps working across new Gboard bases and release tag formats.
+- **Self-Patched Builds**: Builds signed with another key (Morphe Manager, `build.sh`) are pointed to the release page instead, since Android only accepts updates signed with the same key.
+- **Opt-Out**: Turn off *Check for updates automatically* under **Advanced settings > Updates**. The check only contacts `api.github.com` and sends nothing about you.
+
 > [!NOTE]
 > **Google Pixel Device Requirement**: New advanced features (such as **Writing Tools V2** and the **On-Device AI Inference Backend Selector**) are available **only on Google Pixel devices** (e.g., Pixel 8 Pro / Pixel 9 series) due to system AICore and hardware model requirements. On non-Pixel Android devices, these specific options are automatically hidden or gated to ensure complete stability, while core features like **Gemini Rambler Natural Voice Typing**, **AI Proofread**, and **Tone Rewriting** work across all supported devices.
 
@@ -206,6 +213,7 @@ PixelBoard features a clean, minimal preference screen modeled directly after th
 - **Inference Backend Type**: On supported hardware, select between `GBOARD_SERVER`, `PRIVATE_INFERENCE_AICORE`, and `PRIVATE_INFERENCE_ASTREA`.
 - **Enable Advanced Voice Typing**: Unlocks the *Rambler* dictation engine in Voice typing settings.
 - **Rounded Keys**: Enable Google's Material 3 Expressive Belka pill-shaped keycaps.
+- **Updates**: Automatic daily check for new GitHub releases (on by default), *Check for updates now*, release notes, and one-tap *Download and install*.
 - **Multilingual Support**: Fully localized in 20+ languages matching your device's system locale.
 - **Toolbar Restart Button (`↻`)**: Optional one-tap process reload utility in the toolbar if you ever want to force a refresh, though all settings and toggles apply automatically in real time without restarts.
 - **Cleaned Preferences**: Promotional bloatware ("Rate Gboard" and "Help & feedback") has been completely removed.
