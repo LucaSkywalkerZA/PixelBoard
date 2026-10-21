@@ -473,6 +473,28 @@ class GboardPackageRenameTransformTest {
     }
 
     @Test
+    fun `settings finalize declares the update checker permissions once`() {
+        val manifest = loadManifest()
+        val settings = loadSettingsDocuments()
+        val updatePermissions = listOf(
+            "android.permission.POST_NOTIFICATIONS",
+            "android.permission.REQUEST_INSTALL_PACKAGES",
+        )
+        val stockPermissions = androidAttributeValues(manifest, "uses-permission", "name")
+        updatePermissions.forEach { permission ->
+            assertFalse(permission, stockPermissions.contains(permission))
+        }
+
+        applyGboardPatchesSettings(manifest, settings)
+        applyGboardPackageRename(manifest, settings)
+
+        val permissions = androidAttributeValues(manifest, "uses-permission", "name")
+        updatePermissions.forEach { permission ->
+            assertEquals(permission, 1, permissions.count { it == permission })
+        }
+    }
+
+    @Test
     fun `package rename never rewrites extension component class names`() {
         val manifest = loadManifest()
         val application = elements(manifest, "application").single()
