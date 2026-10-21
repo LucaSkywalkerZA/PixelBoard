@@ -74,10 +74,14 @@ android {
     defaultConfig {
         buildConfigField("String", "PATCH_AUTHOR", "\"Akshay Kadam\"")
         buildConfigField("String", "PATCH_AUTHOR_URL", "\"https://github.com/Akshayykadam\"")
+        // The repository whose GitHub releases the in-app updater follows; forks that publish
+        // their own builds set -PpatchRepositoryUrl=https://github.com/<owner>/<repo>.
         buildConfigField(
             "String",
             "PATCH_REPOSITORY_URL",
-            "\"https://github.com/Akshayykadam/PixelBoard\""
+            "\"${providers.gradleProperty("patchRepositoryUrl").getOrElse(
+                "https://github.com/Akshayykadam/PixelBoard"
+            )}\""
         )
         buildConfigField("String", "PATCH_VERSION", "\"${project.version}\"")
         // SHA-256 of the certificate that signs the release APKs on GitHub. The in-app updater
