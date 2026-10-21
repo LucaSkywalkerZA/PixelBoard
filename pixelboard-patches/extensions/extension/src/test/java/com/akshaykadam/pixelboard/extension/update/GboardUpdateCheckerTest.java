@@ -103,9 +103,11 @@ public final class GboardUpdateCheckerTest {
 
     @Test
     public void derivesTheRepositoryFromTheBuildConfig() {
-        Assert.assertEquals("Akshayykadam/PixelBoard", GboardUpdateChecker.repository());
+        // Forks set the URL with -PpatchRepositoryUrl; the default is the upstream repository.
+        Assert.assertEquals(GboardUpdateChecker.repositoryFromUrl(BuildConfig.PATCH_REPOSITORY_URL),
+                GboardUpdateChecker.repository());
         Assert.assertEquals("Akshayykadam/PixelBoard",
-                GboardUpdateChecker.repositoryFromUrl(BuildConfig.PATCH_REPOSITORY_URL));
+                GboardUpdateChecker.repositoryFromUrl("https://github.com/Akshayykadam/PixelBoard"));
         Assert.assertEquals("someone/PixelBoard-fork",
                 GboardUpdateChecker.repositoryFromUrl("https://github.com/someone/PixelBoard-fork/"));
         Assert.assertEquals("someone/PixelBoard",
@@ -132,7 +134,7 @@ public final class GboardUpdateCheckerTest {
         Assert.assertNull(GboardUpdateSettings.readLastError(preferences));
         String request = singleRequest();
         Assert.assertTrue(request, request.startsWith(
-                "/repos/Akshayykadam/PixelBoard/releases/latest User-Agent=PixelBoard/"
+                "/repos/" + GboardUpdateChecker.repository() + "/releases/latest User-Agent=PixelBoard/"
                         + BuildConfig.PATCH_VERSION));
         Assert.assertTrue(request, request.contains("Accept=application/vnd.github+json"));
         Assert.assertTrue(request, request.endsWith("If-None-Match=null"));
