@@ -6,12 +6,17 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import android.app.AlertDialog;
+import android.content.SharedPreferences;
 import android.view.View;
+
+import com.akshaykadam.pixelboard.extension.update.GboardUpdateSettings;
+import com.akshaykadam.pixelboard.extension.update.GboardUpdateUiListener;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
+import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
 import org.robolectric.shadows.ShadowAlertDialog;
 
@@ -38,6 +43,11 @@ public final class GboardPatchesMultiChoiceDialogTest {
 
     @Test
     public void longModuleListKeepsConfirmationButtonOnScreen() {
+        // Keep the screen's update check off the network.
+        SharedPreferences updatePreferences =
+                GboardUpdateSettings.preferences(RuntimeEnvironment.getApplication());
+        GboardUpdateSettings.writeAutoCheckEnabled(updatePreferences, false);
+        GboardUpdateSettings.writeNotificationPermissionAsked(updatePreferences);
         GboardPatchesSettingsActivity activity = Robolectric.buildActivity(
                 GboardPatchesSettingsActivity.class).setup().get();
         String[] labels = new String[15];
@@ -76,5 +86,6 @@ public final class GboardPatchesMultiChoiceDialogTest {
 
         dialog.dismiss();
         activity.finish();
+        GboardUpdateUiListener.set(null);
     }
 }
