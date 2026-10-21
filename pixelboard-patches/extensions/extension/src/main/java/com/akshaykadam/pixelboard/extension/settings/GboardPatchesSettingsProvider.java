@@ -9,6 +9,8 @@ import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
 import java.io.File;
 import java.io.FileNotFoundException;
+import android.util.Log;
+import com.akshaykadam.pixelboard.extension.update.GboardUpdateScheduler;
 
 public final class GboardPatchesSettingsProvider extends ContentProvider {
     private static final String TAG = "PixelBoard";
@@ -16,6 +18,13 @@ public final class GboardPatchesSettingsProvider extends ContentProvider {
 
     @Override
     public boolean onCreate() {
+        // Providers are created at every process start, so this is a hook-free entry point that
+        // does not depend on the Gboard version.
+        try {
+            GboardUpdateScheduler.start(getContext());
+        } catch (Throwable throwable) {
+            Log.w(TAG, "Failed to start the update check", throwable);
+        }
         return true;
     }
 
