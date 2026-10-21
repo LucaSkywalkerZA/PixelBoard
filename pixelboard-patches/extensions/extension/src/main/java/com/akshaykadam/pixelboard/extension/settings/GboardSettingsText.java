@@ -2,6 +2,7 @@ package com.akshaykadam.pixelboard.extension.settings;
 
 import android.content.Context;
 import android.content.res.Configuration;
+import android.content.res.Resources;
 import android.os.Build;
 
 import java.util.Locale;
@@ -34,6 +35,31 @@ public final class GboardSettingsText {
             return stableQuantity;
         }
         return requireContext(context).getResources().getQuantityString(resId, quantity, quantity);
+    }
+
+    /**
+     * The locale that text for {@code resId} is shown in, for formatting numbers and dates next
+     * to it: English when the string has no translation for the context language.
+     */
+    public static Locale textLocale(Context context, int resId) {
+        Locale locale = extractLocale(context);
+        String languageTag = normalizeLanguageTag(locale != null ? locale.getLanguage() : null);
+        if (!LANGUAGE_ENGLISH.equals(languageTag)) {
+            String text = GboardSettingsTextCatalog.template(resId, languageTag);
+            if (text == null
+                    || text.equals(GboardSettingsTextCatalog.template(resId, LANGUAGE_ENGLISH))) {
+                languageTag = LANGUAGE_ENGLISH;
+                locale = Locale.ENGLISH;
+            }
+        }
+        // The settings context may carry only a language; the system locale adds the region
+        // (date order, digits) when it is the same language.
+        Locale systemLocale = systemLocale();
+        if (systemLocale != null
+                && languageTag.equals(normalizeLanguageTag(systemLocale.getLanguage()))) {
+            return systemLocale;
+        }
+        return locale != null ? locale : Locale.ENGLISH;
     }
 
     static String resolveStableTextForTesting(int resId, String languageTag, Object... args) {
@@ -105,6 +131,20 @@ public final class GboardSettingsText {
         }
         Locale locale = configuration.locale;
         return locale != null ? locale : Locale.getDefault();
+    }
+
+    private static Locale systemLocale() {
+        try {
+            Configuration configuration = Resources.getSystem().getConfiguration();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N
+                    && configuration.getLocales() != null
+                    && !configuration.getLocales().isEmpty()) {
+                return configuration.getLocales().get(0);
+            }
+            return configuration.locale;
+        } catch (Throwable ignored) {
+            return null;
+        }
     }
 
     private static String normalizeLanguageTag(String languageTag) {
