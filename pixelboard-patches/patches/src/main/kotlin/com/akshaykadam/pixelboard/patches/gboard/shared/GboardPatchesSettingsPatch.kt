@@ -118,6 +118,8 @@ internal fun applyGboardPatchesSettings(
     ensureManifestUsesPermission(manifestDocument, manifest, "android.permission.CAMERA")
     ensureManifestUsesPermission(manifestDocument, manifest, "android.permission.READ_MEDIA_IMAGES")
     ensureManifestUsesPermission(manifestDocument, manifest, "android.permission.READ_EXTERNAL_STORAGE")
+    // GitHub release update check: "update available" notification and in-app APK install.
+    ensureManifestUsesPermission(manifestDocument, manifest, "android.permission.POST_NOTIFICATIONS")
     ensureManifestUsesPermission(manifestDocument, manifest, "android.permission.REQUEST_INSTALL_PACKAGES")
 
     val activity = application.childElements("activity").firstOrNull {

@@ -53,6 +53,7 @@ import android.speech.SpeechRecognizer;
 import android.provider.Settings;
 import android.provider.OpenableColumns;
 import android.text.TextUtils;
+import android.text.format.Formatter;
 import android.util.Log;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -109,6 +110,14 @@ import com.akshaykadam.pixelboard.extension.BuildConfig;
 import com.akshaykadam.pixelboard.extension.settings.keyboardpreview.GboardKeyboardPreviewController;
 import com.akshaykadam.pixelboard.extension.updater.PixelBoardUpdateFeature;
 import com.akshaykadam.pixelboard.extension.updater.PixelBoardUpdateManager;
+import com.akshaykadam.pixelboard.extension.update.GboardUpdateChecker;
+import com.akshaykadam.pixelboard.extension.update.GboardUpdateInstaller;
+import com.akshaykadam.pixelboard.extension.update.GboardUpdateNotifier;
+import com.akshaykadam.pixelboard.extension.update.GboardUpdateRelease;
+import com.akshaykadam.pixelboard.extension.update.GboardUpdateScheduler;
+import com.akshaykadam.pixelboard.extension.update.GboardUpdateSettings;
+import com.akshaykadam.pixelboard.extension.update.GboardUpdateSettingsSection;
+import com.akshaykadam.pixelboard.extension.update.GboardUpdateUiListener;
 
 public final class GboardPatchesSettingsActivity extends Activity
         implements GboardPatchesSettingsContract.Host {
@@ -148,6 +157,7 @@ public final class GboardPatchesSettingsActivity extends Activity
     private static final int REQUEST_OPEN_BINARY_DOCUMENT = 0x4749;
     private static final int TOOLBAR_HEIGHT_DP = 56;
     private static final int NO_SCROLL_POSITION_REQUESTED = -1;
+    private static final long UPDATE_STATE_REFRESH_DELAY_MS = 250L;
     private static final String TOOLBAR_TITLE_PATCHES = "Patches";
     private static final String ABOUT_AUTHOR_URL = "https://github.com/Akshayykadam";
     private static final String ABOUT_PATCH_REPOSITORY_URL =
@@ -194,6 +204,8 @@ public final class GboardPatchesSettingsActivity extends Activity
     private final Handler screenRefreshHandler = new Handler(Looper.getMainLooper());
     private final Runnable screenRefreshRunnable = this::refresh;
     private final Runnable deferredRenderRunnable = this::initializeFeaturesAndRenderSafely;
+    private final Runnable updateStateRefreshRunnable = this::refreshUpdateStateIfVisible;
+    private boolean updateRefreshDeferred;
     private final ExecutorService screenBuildExecutor =
             Executors.newSingleThreadExecutor(runnable -> {
                 Thread thread = new Thread(runnable, "GboardPatchesScreenBuild");
@@ -217,6 +229,38 @@ public final class GboardPatchesSettingsActivity extends Activity
     private GboardPatchesSettingsContract.Feature lifecycleVisibleFeature;
     private boolean featureLifecycleEnabled;
     private GboardPatchesSettingsContract.BooleanValueConsumer pendingPermissionConsumer;
+    private final GboardUpdateSettingsSection.Actions updateSettingsActions =
+            new GboardUpdateSettingsSection.Actions() {
+                @Override
+                public void checkNow() {
+                    GboardUpdateScheduler.checkNow(GboardPatchesSettingsActivity.this);
+                }
+
+                @Override
+                public void install() {
+                    confirmUpdateInstall();
+                }
+
+                @Override
+                public void openReleasePage(String url) {
+                    openExternalUrl(url);
+                }
+
+                @Override
+                public void requestNotificationPermission() {
+                    requestUpdateNotificationPermission();
+                }
+
+                @Override
+                public void setAutoCheckEnabled(boolean enabled) {
+                    GboardUpdateSettings.writeAutoCheckEnabled(
+                            GboardUpdateSettings.preferences(GboardPatchesSettingsActivity.this),
+                            enabled);
+                    if (enabled) {
+                        GboardUpdateScheduler.checkIfDue(GboardPatchesSettingsActivity.this);
+                    }
+                }
+            };
     private volatile GboardPatchesSettingsContract.OfflineSpeechLanguages offlineSpeechLanguages =
             GboardPatchesSettingsContract.OfflineSpeechLanguages.loading();
     private SpeechRecognizer offlineSpeechRecognizer;
@@ -259,6 +303,9 @@ public final class GboardPatchesSettingsActivity extends Activity
             setContentView(contentView);
             installWindowInsetsHandling(contentView);
             registerBackCallback();
+            if (savedInstanceState == null) {
+                handleUpdateIntent(getIntent());
+            }
         } catch (Throwable throwable) {
             showFatalFallbackScreen("Failed to initialize patches settings activity", throwable);
         }
@@ -271,6 +318,7 @@ public final class GboardPatchesSettingsActivity extends Activity
         setRestartButtonPending(false);
         initialFeatureFromIntentHandled = false;
         scheduleDeferredRender();
+        handleUpdateIntent(intent);
     }
 
     @Override
@@ -279,10 +327,17 @@ public final class GboardPatchesSettingsActivity extends Activity
         featureLifecycleEnabled = true;
         applyOrchestration(settingsOrchestrator.accept(
                 GboardPatchesSettingsOrchestrator.Event.resume()));
+        GboardUpdateInstaller.setSettingsVisible(true);
+        GboardUpdateUiListener.set(this::scheduleUpdateStateRefresh);
+        GboardUpdateScheduler.checkIfDue(this);
+        maybeRequestUpdateNotificationPermission();
     }
 
     @Override
     protected void onPause() {
+        GboardUpdateInstaller.setSettingsVisible(false);
+        GboardUpdateUiListener.set(null);
+        updateRefreshDeferred = false;
         featureLifecycleEnabled = false;
         applyOrchestration(settingsOrchestrator.accept(
                 GboardPatchesSettingsOrchestrator.Event.pause()));
@@ -353,6 +408,10 @@ public final class GboardPatchesSettingsActivity extends Activity
         }
         applyOrchestration(settingsOrchestrator.accept(
                 GboardPatchesSettingsOrchestrator.Event.modalDismissed()));
+        if (updateRefreshDeferred) {
+            updateRefreshDeferred = false;
+            scheduleUpdateStateRefresh();
+        }
     }
 
     @Override
@@ -3165,6 +3224,16 @@ public final class GboardPatchesSettingsActivity extends Activity
                 GboardSettingsText.get(context, R.string.gboard_patches_section_features),
                 rows));
 
+        GboardUpdateRelease availableUpdate = GboardUpdateChecker.availableUpdate(context);
+        GboardPatchesSettingsContract.Section updatesSection = GboardUpdateSettingsSection.build(
+                context,
+                patchesPrefs,
+                availableUpdate,
+                updateSettingsActions,
+                System.currentTimeMillis());
+        // A pending update goes first so it is the first thing seen on the screen.
+        sections.add(availableUpdate != null ? 0 : sections.size(), updatesSection);
+
         return new GboardPatchesSettingsContract.Screen(
                 GboardSettingsText.get(context, R.string.gboard_patches_activity_title),
                 null,
@@ -3174,6 +3243,123 @@ public final class GboardPatchesSettingsActivity extends Activity
                 sections,
                 GboardPatchesSettingsContract.RefreshPolicy.none(),
                 GboardPatchesSettingsContract.PanelStyle.FLAT);
+    }
+
+    private void handleUpdateIntent(Intent intent) {
+        if (intent == null || !intent.hasExtra(GboardUpdateNotifier.EXTRA_UPDATE_ACTION)) {
+            return;
+        }
+        String updateAction = intent.getStringExtra(GboardUpdateNotifier.EXTRA_UPDATE_ACTION);
+        intent.removeExtra(GboardUpdateNotifier.EXTRA_UPDATE_ACTION);
+        if (GboardUpdateNotifier.UPDATE_ACTION_INSTALL.equals(updateAction)) {
+            postToDecorView(() -> runSafely("offer update install", this::confirmUpdateInstall));
+        }
+    }
+
+    private void scheduleUpdateStateRefresh() {
+        View anchor = panelContainer != null ? panelContainer : getWindow().getDecorView();
+        if (anchor == null) {
+            return;
+        }
+        // Coalesces bursts of update events from worker threads into one rebuild.
+        anchor.removeCallbacks(updateStateRefreshRunnable);
+        anchor.postDelayed(updateStateRefreshRunnable, UPDATE_STATE_REFRESH_DELAY_MS);
+    }
+
+    private void refreshUpdateStateIfVisible() {
+        GboardPatchesSettingsOrchestrator.State<GboardPatchesSettingsContract.Feature> state =
+                settingsOrchestrator.snapshot();
+        // Only the root screen shows update state; rebuilding any other screen, or under an
+        // open dialog, would drop taps and accessibility focus for nothing. Navigating back and
+        // resuming render anyway; a closing dialog replays the deferred refresh.
+        if (state.getCurrent() != null || !state.isResumed()) {
+            return;
+        }
+        if (state.getModalCount() > 0) {
+            updateRefreshDeferred = true;
+            return;
+        }
+        updateRefreshDeferred = false;
+        renderCurrentScreenSafely();
+    }
+
+    private void confirmUpdateInstall() {
+        if (GboardUpdateInstaller.resumeConfirmation(this)) {
+            return;
+        }
+        GboardUpdateRelease release = GboardUpdateChecker.availableUpdate(this);
+        if (release == null || !release.hasApk() || GboardUpdateInstaller.isBusy()
+                || !GboardUpdateInstaller.isOfficialBuild(this)) {
+            renderCurrentScreenSafely();
+            return;
+        }
+        if (!GboardUpdateInstaller.canInstallPackages(this)) {
+            showMessage(text(R.string.gboard_patches_update_allow_installs_message));
+            tryStartActivity(GboardUpdateInstaller.unknownAppSourcesSettingsIntent(this));
+            return;
+        }
+        String message = release.apkSize > 0L
+                ? GboardSettingsText.format(this, R.string.gboard_patches_update_confirm_message,
+                        Formatter.formatShortFileSize(this, release.apkSize))
+                : text(R.string.gboard_patches_update_confirm_message_no_size);
+        showConfirmDialog(
+                GboardSettingsText.format(this, R.string.gboard_patches_update_confirm_title,
+                        release.displayVersion()),
+                message,
+                () -> {
+                    GboardUpdateInstaller.start(this);
+                    renderCurrentScreenSafely();
+                });
+    }
+
+    private void maybeRequestUpdateNotificationPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            return;
+        }
+        try {
+            backgroundStateExecutor.execute(() -> {
+                try {
+                    SharedPreferences preferences = GboardUpdateSettings.preferences(this);
+                    if (!GboardUpdateSettings.readAutoCheckEnabled(preferences)
+                            || GboardUpdateSettings.readNotificationPermissionAsked(preferences)
+                            || checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                                    == PackageManager.PERMISSION_GRANTED) {
+                        return;
+                    }
+                    // Ask once; afterwards the Updates section offers a row to allow them.
+                    GboardUpdateSettings.writeNotificationPermissionAsked(preferences);
+                    postToDecorView(() -> requestRuntimePermission(
+                            android.Manifest.permission.POST_NOTIFICATIONS,
+                            granted -> renderCurrentScreenSafely()));
+                } catch (Throwable throwable) {
+                    Log.w(TAG, "Failed to ask for update notification permission", throwable);
+                }
+            });
+        } catch (RejectedExecutionException ignored) {
+            // Activity is already tearing down.
+        }
+    }
+
+    private void requestUpdateNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                        != PackageManager.PERMISSION_GRANTED) {
+            requestRuntimePermission(android.Manifest.permission.POST_NOTIFICATIONS, granted -> {
+                // Android stops showing the prompt after repeated denials; fall back to settings.
+                if (!granted && !shouldShowRequestPermissionRationale(
+                        android.Manifest.permission.POST_NOTIFICATIONS)) {
+                    openAppNotificationSettings();
+                }
+                renderCurrentScreenSafely();
+            });
+            return;
+        }
+        openAppNotificationSettings();
+    }
+
+    private void openAppNotificationSettings() {
+        tryStartActivity(new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName()));
     }
 
     static GboardPatchesSettingsContract.Screen createRootScreen(
