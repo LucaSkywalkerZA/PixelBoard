@@ -15,7 +15,6 @@ import java.util.Collections;
 import java.util.List;
 
 import com.akshaykadam.pixelboard.extension.keyboard.GboardAiVoiceSettingsGroupFeature;
-import com.akshaykadam.pixelboard.extension.updater.PixelBoardUpdateFeature;
 
 public final class GboardPatchesSettingsFeatureRegistry {
     private static final String TAG = "PixelBoard";
@@ -27,7 +26,7 @@ public final class GboardPatchesSettingsFeatureRegistry {
         List<GboardPatchesSettingsContract.Feature> features =
                 new ArrayList<GboardPatchesSettingsContract.Feature>();
         addIfAvailable(context, features, new GboardAiVoiceSettingsGroupFeature(context));
-        addIfAvailable(context, features, new PixelBoardUpdateFeature(context));
+        // Updates are handled by the extension.update section on the root screen.
         return Collections.unmodifiableList(features);
     }
 
