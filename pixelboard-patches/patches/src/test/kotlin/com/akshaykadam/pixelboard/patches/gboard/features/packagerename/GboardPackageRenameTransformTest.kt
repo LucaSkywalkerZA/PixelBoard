@@ -688,11 +688,13 @@ class GboardPackageRenameTransformTest {
             val matchingIntents = elements(document, "intent").filter { intent ->
                 androidAttribute(intent, "targetClass") == SETTINGS_ACTIVITY_CLASS
             }
-            assertEquals(2, matchingIntents.size)
+            // Only the Advanced settings entry: updates are a section of that screen.
+            assertEquals(1, matchingIntents.size)
             matchingIntents.forEach { intent ->
                 assertEquals(FINAL_PACKAGE, androidAttribute(intent, "targetPackage"))
             }
             val xml = serialize(document)
+            assertFalse(xml.contains("pixelboard_updates_entry"))
             assertFalse(xml.contains("targetPackage=\"$SOURCE_PACKAGE\""))
             assertFalse(xml.contains(DOUBLE_PREFIX))
         }
