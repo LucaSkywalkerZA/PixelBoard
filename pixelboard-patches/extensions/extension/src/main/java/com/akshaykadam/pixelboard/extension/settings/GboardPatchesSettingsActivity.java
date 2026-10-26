@@ -3002,9 +3002,10 @@ public final class GboardPatchesSettingsActivity extends Activity
             return false;
         }
         if (ACTION_UPDATES.equals(intent.getAction())) {
-            standaloneFeatureMode = true;
+            standaloneFeatureMode = false;
             for (GboardPatchesSettingsContract.Feature feature : features) {
                 if (feature instanceof PixelBoardUpdateFeature) {
+                    standaloneFeatureMode = true;
                     List<GboardPatchesSettingsContract.Feature> path =
                             Collections.singletonList(feature);
                     runOnUiThread(() -> {
