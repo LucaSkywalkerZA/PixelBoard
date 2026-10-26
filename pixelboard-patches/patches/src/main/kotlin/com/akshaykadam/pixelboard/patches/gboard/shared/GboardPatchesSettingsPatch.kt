@@ -290,6 +290,8 @@ internal fun applyGboardPatchesSettings(
                 }
             }
         }
+        // Updates live in the extension.update section of Advanced settings, so drop the separate entry.
+        updatesEntry.parentNode?.removeChild(updatesEntry)
     }
 }
 
