@@ -553,7 +553,8 @@ private fun validateSettingsIdentity(
 
     val hasProvider = providerAuthority != null
     val hasAllSettingsIntents =
-        settingsDocuments.isNotEmpty() && targetPackagesByDocument.all { it.size == 2 }
+        // Forks may drop the separate Updates entry, leaving one intent per document.
+        settingsDocuments.isNotEmpty() && targetPackagesByDocument.all { it.isNotEmpty() }
     val hasAnySettingsIntent = targetPackagesByDocument.any { it.isNotEmpty() }
     check(
         (!hasProvider && !hasAnySettingsIntent) ||
