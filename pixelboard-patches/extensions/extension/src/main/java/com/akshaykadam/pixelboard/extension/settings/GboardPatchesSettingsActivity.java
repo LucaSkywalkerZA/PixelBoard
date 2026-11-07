@@ -3234,8 +3234,8 @@ public final class GboardPatchesSettingsActivity extends Activity
                 availableUpdate,
                 updateSettingsActions,
                 System.currentTimeMillis());
-        // A pending update goes first so it is the first thing seen on the screen.
-        sections.add(availableUpdate != null ? 0 : sections.size(), updatesSection);
+        // Always last, so the page layout does not move when an update comes out; the notification announces it.
+        sections.add(updatesSection);
 
         return new GboardPatchesSettingsContract.Screen(
                 GboardSettingsText.get(context, R.string.gboard_patches_activity_title),
