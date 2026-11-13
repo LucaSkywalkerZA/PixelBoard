@@ -28,6 +28,8 @@ private const val CONTINUE_LABEL = "pixelboard_rambler_glow_continue"
  * sees no view, stops the glow (which drops that pending resetUi) and skips setBackground(null): the stopped glow
  * stays on the header as a frozen colourful bar. Stock Gboard has the same bug (upstream #88, #130).
  * Fix: while an exit animation is pending, a repeated hideUi does nothing, so resetUi runs and clears the glow.
+ * Gboard 18.6.3 fixes this itself (the pending reset is kept in a field and finished by a repeated hideUi), so
+ * this patch only targets 18.5.3; on later versions the target is missing or fails the shape check and is skipped.
  */
 internal val gboardRamblerGlowResetFixPatch = bytecodePatch(
     description = "Stop the Rambler glow from getting stuck after closing the keyboard while voice input starts.",
