@@ -23,6 +23,8 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.res.ColorStateList;
 import android.content.res.Configuration;
+import android.content.res.Resources;
+import android.content.res.TypedArray;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -1676,19 +1678,41 @@ public final class GboardPatchesSettingsActivity extends Activity
         }
     }
 
+    // Gboard's expressive settings themes, by obfuscated id. The ids move between Gboard releases
+    // (18.5.3: 0x7f150336/7, 18.6.3: 0x7f150334/5), and in 18.6.3 0x7f150337 is a view style that
+    // sets android:id: used as the activity theme it gives every view the same id, which crashes
+    // AlertDialog (no button panel). So each candidate must look like a theme before it is used.
+    private static final String[] EXPRESSIVE_THEME_CANDIDATES_SDK36 = {
+            "style_0x7f150337", "style_0x7f150335", "style_0x7f150336", "style_0x7f150334"
+    };
+    private static final String[] EXPRESSIVE_THEME_CANDIDATES = {
+            "style_0x7f150336", "style_0x7f150334", "style_0x7f150337", "style_0x7f150335"
+    };
+
+    /** A window theme defines a window background and never a view id. */
+    private boolean looksLikeActivityTheme(int styleId) {
+        Resources.Theme theme = getResources().newTheme();
+        theme.applyStyle(styleId, true);
+        // Sorted by attribute id, as obtainStyledAttributes requires.
+        TypedArray values = theme.obtainStyledAttributes(new int[] {
+                android.R.attr.windowBackground, android.R.attr.id });
+        try {
+            return values.hasValue(0) && !values.hasValue(1);
+        } finally {
+            values.recycle();
+        }
+    }
+
     private int resolveActivityTheme() {
         try {
-            int expressiveTheme = getResources().getIdentifier(
-                    Build.VERSION.SDK_INT >= 36 ? "style_0x7f150337" : "style_0x7f150336",
-                    "style", getPackageName());
-            if (expressiveTheme == 0) {
-                expressiveTheme = getResources().getIdentifier("style_0x7f150336", "style", getPackageName());
-            }
-            if (expressiveTheme == 0) {
-                expressiveTheme = getResources().getIdentifier("style_0x7f150337", "style", getPackageName());
-            }
-            if (expressiveTheme != 0) {
-                return expressiveTheme;
+            String[] candidates = Build.VERSION.SDK_INT >= 36
+                    ? EXPRESSIVE_THEME_CANDIDATES_SDK36
+                    : EXPRESSIVE_THEME_CANDIDATES;
+            for (String name : candidates) {
+                int styleId = getResources().getIdentifier(name, "style", getPackageName());
+                if (styleId != 0 && looksLikeActivityTheme(styleId)) {
+                    return styleId;
+                }
             }
         } catch (Throwable ignored) {
         }
@@ -1757,6 +1781,18 @@ public final class GboardPatchesSettingsActivity extends Activity
         contentColumn.addView(buildHeaderCard());
         contentColumn.addView(buildPanelCard());
 
+        // The version sits at the end of the list and scrolls with it, so the list runs to the
+        // bottom edge like the system Settings app instead of stopping above a pinned bar.
+        footerVersionView = new TextView(this);
+        footerVersionView.setText("PixelBoard " + resolvePatchVersion());
+        footerVersionView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f);
+        footerVersionView.setTextColor(palette.textSecondary);
+        footerVersionView.setGravity(Gravity.CENTER);
+        footerVersionView.setPadding(0, dp(12), 0, dp(8));
+        contentColumn.addView(footerVersionView, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT));
+
         contentScrollView.addView(contentColumn);
         shell.addView(contentScrollView);
 
@@ -1768,15 +1804,6 @@ public final class GboardPatchesSettingsActivity extends Activity
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        footerVersionView = new TextView(this);
-        footerVersionView.setText("PixelBoard " + resolvePatchVersion());
-        footerVersionView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f);
-        footerVersionView.setTextColor(palette.textSecondary);
-        footerVersionView.setGravity(Gravity.CENTER);
-        footerVersionView.setPadding(0, dp(12), 0, dp(24));
-        shell.addView(footerVersionView, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT));
         keyboardPreviewController = new GboardKeyboardPreviewController(
                 this,
                 this::targetSettingsPackages,
@@ -2563,9 +2590,6 @@ public final class GboardPatchesSettingsActivity extends Activity
                 if (screenActionContainer != null) {
                     screenActionContainer.setPadding(
                             dp(16), dp(8), dp(16), dp(16) + bottomInset);
-                }
-                if (footerVersionView != null) {
-                    footerVersionView.setPadding(0, dp(12), 0, dp(24) + bottomInset);
                 }
                 if (keyboardPreviewController != null) {
                     keyboardPreviewController.updateSafeAreaInsets(resolveRightInset(insets),
